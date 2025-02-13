@@ -113,22 +113,10 @@ fn contract_init<S: HasStateApi>(_ctx: &InitContext, state_builder: &mut StateBu
 
 /// Standard identifier for CIS-
 
-#[derive(Serial, Deserial, SchemaType)]
-struct StandardIdentifierQuery {
-    queries: Vec<String>,
-}
-
-#[derive(Serial, Deserial, SchemaType)]
-enum StandardSupport {
-    NoSupport,
-    Support,
-    SupportBy(Vec<ContractAddress>),
-}
-
-#[derive(Serial, Deserial, SchemaType)]
-struct StandardIdentifierResponse {
-    results: Vec<StandardSupport>,
-}
+pub const SUPPORTS_STANDARDS: [StandardIdentifier<'static>; 2] = [
+    StandardIdentifier::new_unchecked("CIS0"),
+    StandardIdentifier::new_unchecked("CIS2"),
+];
 
 #[receive(
     contract = "LicenseContract",
@@ -136,21 +124,22 @@ struct StandardIdentifierResponse {
     parameter = "SupportsQueryParams",
     return_value = "SupportsQueryResponse"
 )]
-fn supports<S: HasStateApi>(
+fn contract_supports<S: HasStateApi>(
     ctx: &impl HasReceiveContext,
-    _host: &impl HasHost<State<S>, StateApiType = S>,
+    host: &impl HasHost<State<S>, StateApiType = S>,
 ) -> ReceiveResult<SupportsQueryResponse> {
-    let query: SupportsQueryParams = ctx.parameter_cursor().get()?;
-    let cis0 = StandardIdentifier::new("CIS0").map_err(|_| ContractError::InvalidStandardIdentifier)?;
-    let cis2 = StandardIdentifier::new("CIS2").map_err(|_| ContractError::InvalidStandardIdentifier)?;
-    let supported: Vec<SupportResult> = query.queries.iter().map(|id| {
-        if id.as_standard_identifier() == cis0 || id.as_standard_identifier() == cis2 {
-            SupportResult::Support
+    let params: SupportsQueryParams = ctx.parameter_cursor().get()?;
+    
+    let mut response = Vec::with_capacity(params.queries.len());
+    for std_id in params.queries {
+        if SUPPORTS_STANDARDS.contains(&std_id.as_standard_identifier()) {
+            response.push(SupportResult::Support);
         } else {
-            SupportResult::NoSupport
+            response.push(SupportResult::NoSupport);
         }
-    }).collect();
-    Ok(SupportsQueryResponse { results: supported })
+    }
+    
+    Ok(SupportsQueryResponse::from(response))
 }
 
 #[receive(
