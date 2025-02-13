@@ -1,5 +1,6 @@
 use concordium_cis2::*;
 use concordium_std::*;
+use concordium_std::collections::BTreeMap;
 
 // === Contract Types ===
 
@@ -11,7 +12,8 @@ enum ContractError {
     ParseError,
     InvalidStandardIdentifier,
     InvalidTokenId,
-    InvalidExpiry
+    InvalidExpiry,
+    InvalidAmount,
 }
 
 impl From<ContractError> for Reject {
@@ -24,6 +26,7 @@ impl From<ContractError> for Reject {
             ContractError::InvalidTokenId => Reject::new(5).expect("Failed to create Reject"),
             ContractError::InvalidStandardIdentifier => Reject::new(6).expect("Failed to create Reject"),
             ContractError::InvalidExpiry => Reject::new(7).expect("Failed to create Reject"),
+            ContractError::InvalidAmount => Reject::new(8).expect("Failed to create Reject"),
         }
     }
 }
@@ -108,6 +111,25 @@ fn contract_init<S: HasStateApi>(_ctx: &InitContext, state_builder: &mut StateBu
 
 // === Contract Receive Functions ===
 
+/// Standard identifier for CIS-
+
+#[derive(Serial, Deserial, SchemaType)]
+struct StandardIdentifierQuery {
+    queries: Vec<String>,
+}
+
+#[derive(Serial, Deserial, SchemaType)]
+enum StandardSupport {
+    NoSupport,
+    Support,
+    SupportBy(Vec<ContractAddress>),
+}
+
+#[derive(Serial, Deserial, SchemaType)]
+struct StandardIdentifierResponse {
+    results: Vec<StandardSupport>,
+}
+
 #[receive(
     contract = "LicenseContract",
     name = "supports",
@@ -116,19 +138,18 @@ fn contract_init<S: HasStateApi>(_ctx: &InitContext, state_builder: &mut StateBu
 )]
 fn supports<S: HasStateApi>(
     ctx: &impl HasReceiveContext,
-    host: &impl HasHost<State<S>, StateApiType = S>,
+    _host: &impl HasHost<State<S>, StateApiType = S>,
 ) -> ReceiveResult<SupportsQueryResponse> {
     let query: SupportsQueryParams = ctx.parameter_cursor().get()?;
-    let cis2_identifier = StandardIdentifier::new("CIS2").map_err(|_| ContractError::InvalidStandardIdentifier)?;
-    let supported: Vec<SupportResult> = query.queries.iter()
-        .map(|id| {
-            if id.as_standard_identifier() == cis2_identifier {
-                SupportResult::Support
-            } else {
-                SupportResult::NoSupport
-            }
-        })
-        .collect();
+    let cis0 = StandardIdentifier::new("CIS0").map_err(|_| ContractError::InvalidStandardIdentifier)?;
+    let cis2 = StandardIdentifier::new("CIS2").map_err(|_| ContractError::InvalidStandardIdentifier)?;
+    let supported: Vec<SupportResult> = query.queries.iter().map(|id| {
+        if id.as_standard_identifier() == cis0 || id.as_standard_identifier() == cis2 {
+            SupportResult::Support
+        } else {
+            SupportResult::NoSupport
+        }
+    }).collect();
     Ok(SupportsQueryResponse { results: supported })
 }
 
@@ -175,10 +196,20 @@ fn mint<S: HasStateApi>(
     Ok(())
 }
 
+/// Transfer parameters for the token transfer function
+#[derive(Serial, Deserial, SchemaType)]
+struct TransferParams {
+    token_id: TokenIdU8,
+    amount: TokenAmountU8,
+    from: Address,
+    to: Address,
+    data: Option<String>,
+}
+
 #[receive(
     contract = "LicenseContract",
     name = "transfer",
-    parameter = "(TokenIdU8, Address)",
+    parameter = "Vec<TransferParams>",
     enable_logger,
     mutable
 )]
@@ -188,43 +219,50 @@ fn transfer<S: HasStateApi>(
     logger: &mut impl HasLogger,
 ) -> ReceiveResult<()> {
     let state = host.state_mut();
-    let (token_id, new_owner): (TokenIdU8, Address) = ctx.parameter_cursor().get()?;
+    let transfers: Vec<TransferParams> = ctx.parameter_cursor().get()?;
     let sender = ctx.sender();
-    let current_time = ctx.metadata().slot_time();
 
-    // Get and verify license ownership
-    let owner = {
-        let license = match state.licenses.get(&token_id) {
-            Some(license) => license,
-            None => return Err(ContractError::LicenseNotFound.into()),
+    // Process each transfer in the batch
+    for transfer in transfers {
+        // Get and verify license ownership
+        let owner = {
+            let license = match state.licenses.get(&transfer.token_id) {
+                Some(license) => license,
+                None => return Err(ContractError::LicenseNotFound.into()),
+            };
+
+            // Verify ownership or operator status
+            if sender != license.current_owner && state.operators.get(&sender).is_none() {
+                return Err(ContractError::Unauthorized.into());
+            }
+
+            license.current_owner
         };
 
-        // Verify ownership or operator status
-        if sender != license.current_owner {
-            return Err(ContractError::Unauthorized.into());
+        // Verify amount is 1 (since licenses are non-fungible)
+        if transfer.amount != TokenAmountU8(1) {
+            return Err(ContractError::InvalidAmount.into());
         }
 
-        license.current_owner
-    };
+        // Update license ownership
+        if let Some(mut license) = state.licenses.get_mut(&transfer.token_id) {
+            license.current_owner = transfer.to;
+        }
 
-    // Update license ownership
-    if let Some(mut license) = state.licenses.get_mut(&token_id) {
-        license.current_owner = new_owner;
+        // Update balances
+        if let Some(mut from_balance) = state.balances.get_mut(&owner) {
+            *from_balance = from_balance.saturating_sub(1);
+        }
+        state.balances.entry(transfer.to).and_modify(|e| *e += 1).or_insert(1);
+
+        // Emit transfer event
+        logger.log(&Cis2Event::<TokenIdU8, TokenAmountU8>::Transfer(TransferEvent {
+            token_id: transfer.token_id,
+            amount: TokenAmountU8(1),
+            from: owner,
+            to: transfer.to,
+        }))?;
     }
-
-    // Update balances
-    if let Some(mut from_balance) = state.balances.get_mut(&owner) {
-        *from_balance = from_balance.saturating_sub(1);
-    }
-    state.balances.entry(new_owner).and_modify(|e| *e += 1).or_insert(1);
-
-    // Emit transfer event
-    logger.log(&Cis2Event::<TokenIdU8, TokenAmountU8>::Transfer(TransferEvent {
-        token_id,
-        amount: TokenAmountU8(1),
-        from: sender,
-        to: new_owner,
-    }))?;
 
     Ok(())
 }
@@ -591,4 +629,126 @@ fn contract_upgrade(
         )?;
     }
     Ok(())
+}
+
+#[derive(Serial, Deserial, SchemaType)]
+struct BalanceOfQuery {
+    token_id: TokenIdU8,
+    address: Address,
+}
+
+/// Response of the balance of function
+#[derive(Serial, Deserial, SchemaType)]
+struct BalanceOfResponse {
+    results: Vec<TokenAmountU8>,
+}
+
+#[receive(
+    contract = "LicenseContract",
+    name = "balanceOf",
+    parameter = "Vec<BalanceOfQuery>",
+    return_value = "BalanceOfResponse"
+)]
+fn balance_of<S: HasStateApi>(
+    ctx: &impl HasReceiveContext,
+    host: &impl HasHost<State<S>, StateApiType = S>,
+) -> ReceiveResult<BalanceOfResponse> {
+    let state = host.state();
+    let queries: Vec<BalanceOfQuery> = ctx.parameter_cursor().get()?;
+    let mut results = Vec::with_capacity(queries.len());
+
+    // Process each query
+    for query in queries {
+        // Check if token exists
+        if state.licenses.get(&query.token_id).is_none() {
+            return Err(ContractError::InvalidTokenId.into());
+        }
+
+        // Get balance or return 0 if none exists
+        let amount = match state.balances.get(&query.address) {
+            Some(balance) => u8::try_from(*balance).unwrap_or(0),
+            None => 0,
+        };
+
+        results.push(TokenAmountU8(amount));
+    }
+
+    Ok(BalanceOfResponse { results })
+}
+
+
+/// Query parameter for the operator of function
+#[derive(Serial, Deserial, SchemaType)]
+struct OperatorOfQuery {
+    owner: Address,
+    address: Address,
+}
+
+/// Response of the operator of function
+#[derive(Serial, Deserial, SchemaType)]
+struct OperatorOfResponse {
+    results: Vec<bool>,
+}
+
+#[receive(
+    contract = "LicenseContract",
+    name = "operatorOf",
+    parameter = "Vec<OperatorOfQuery>",
+    return_value = "OperatorOfResponse"
+)]
+fn operator_of<S: HasStateApi>(
+    ctx: &impl HasReceiveContext,
+    host: &impl HasHost<State<S>, StateApiType = S>,
+) -> ReceiveResult<OperatorOfResponse> {
+    let state = host.state();
+    let queries: Vec<OperatorOfQuery> = ctx.parameter_cursor().get()?;
+    let mut results = Vec::with_capacity(queries.len());
+
+    // Process each query
+    for query in queries {
+        // Check if address is an operator for the owner
+        let is_operator = state.operators.get(&query.address)
+            .map(|owner| *owner == query.owner)
+            .unwrap_or(false);
+
+        results.push(is_operator);
+    }
+
+    Ok(OperatorOfResponse { results })
+}
+
+#[derive(Serial, Deserial, SchemaType)]
+struct TokenMetadataResponse {
+    results: Vec<MetadataUrl>,
+}
+
+#[receive(
+    contract = "LicenseContract",
+    name = "tokenMetadata",
+    parameter = "Vec<TokenIdU8>",
+    return_value = "TokenMetadataResponse"
+)]
+fn token_metadata<S: HasStateApi>(
+    ctx: &impl HasReceiveContext,
+    host: &impl HasHost<State<S>, StateApiType = S>,
+) -> ReceiveResult<TokenMetadataResponse> {
+    let state = host.state();
+    let token_ids: Vec<TokenIdU8> = ctx.parameter_cursor().get()?;
+    let mut results = Vec::with_capacity(token_ids.len());
+
+    // Process each token ID
+    for token_id in token_ids {
+        // Check if token exists
+        if state.licenses.get(&token_id).is_none() {
+            return Err(ContractError::InvalidTokenId.into());
+        }
+
+        // Create metadata URL for the token
+        results.push(MetadataUrl {
+            url: format!("token-{}", token_id),
+            hash: None,
+        });
+    }
+
+    Ok(TokenMetadataResponse { results })
 }

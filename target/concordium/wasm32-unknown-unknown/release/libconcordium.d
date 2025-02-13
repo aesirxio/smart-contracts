@@ -1,1 +1,1 @@
-/Users/slobodankotarac/Documents/concordium/target/concordium/wasm32-unknown-unknown/release/libconcordium.rlib: /Users/slobodankotarac/Documents/concordium/src/lib.rs
+/Users/slobodankotarac/Documents/concordium/smart-contracts-1/target/concordium/wasm32-unknown-unknown/release/libconcordium.rlib: /Users/slobodankotarac/Documents/concordium/smart-contracts-1/src/lib.rs
