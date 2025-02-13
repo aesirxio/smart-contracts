@@ -1,0 +1,30 @@
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[package]
+name = "concordium"
+version = "0.1.0"
+edition = "2021"
+license = "MPL-2.0"
+authors = ["Slobodan Kotarac <slobodan@r-digital.tech>"]
+
+[features]
+default = ["std"]
+std = ["concordium-std/std", "concordium-cis2/std"]
+bump_alloc = ["concordium-std/bump_alloc"]
+
+[dependencies]
+concordium-std = { version = "10.1.0"}
+concordium-cis2 = "6.2.0"
+concordium-std-derive = "6.0.0"
+
+
+
+[dev-dependencies]
+concordium-smart-contract-testing = "4.2"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[profile.release]
+opt-level = "s"
+codegen-units = 1
