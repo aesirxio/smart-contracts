@@ -26,7 +26,7 @@ use concordium_std::*;
 
 /// The baseurl for the token metadata, gets appended with the token ID as hex
 /// encoding before emitted in the TokenMetadata event.
-const TOKEN_METADATA_BASE_URL: &str = "https://web3id.backend.aesirx.io:8001/web3id/";
+const TOKEN_METADATA_BASE_URL: &str = "https://denta.rs/";
 
 /// List of supported standards by this contract address.
 const SUPPORTS_STANDARDS: [StandardIdentifier<'static>; 2] =
@@ -229,8 +229,10 @@ impl<S: HasStateApi> State<S> {
             self.all_tokens.insert(token),
             CustomContractError::TokenIdAlreadyExists.into()
         );
+
+        let metadata_url = format!("{}{}", TOKEN_METADATA_BASE_URL, token);
         let metadata = TokenMetadata {
-            url: metadata_url.clone(),
+            url: metadata_url,
             hash: String::from(""),
         };
 
@@ -374,28 +376,28 @@ impl<S: HasStateApi> State<S> {
 
 /// Build a string from TOKEN_METADATA_BASE_URL appended with the web3id
 /// encoded as hex.
-fn build_token_metadata_url(web3id: &Web3Id) -> String {
-    let mut token_metadata_url = String::from(TOKEN_METADATA_BASE_URL);
-    token_metadata_url.push_str(&web3id.to_string());
-    token_metadata_url
-}
+// fn build_token_metadata_url(web3id: &Web3Id) -> String {
+//     let mut token_metadata_url = String::from(TOKEN_METADATA_BASE_URL);
+//     token_metadata_url.push_str(&web3id.to_string());
+//     token_metadata_url
+// }
 
 /// Function to evaluate a web3 id format
-fn check_web3id(s: &str) -> bool {
-    if s.starts_with('@') && s.len() >= 4 && s.len() <= 21 {
-        let username = &s[1..];
-        if username.chars().all(|c| c.is_alphanumeric() || c == '_') {
-            return true;
-        }
-    }
-    false
-}
+// fn check_web3id(s: &str) -> bool {
+//     if s.starts_with('@') && s.len() >= 4 && s.len() <= 21 {
+//         let username = &s[1..];
+//         if username.chars().all(|c| c.is_alphanumeric() || c == '_') {
+//             return true;
+//         }
+//     }
+//     false
+// }
 
 // Contract functions
 
 /// Initialize contract instance with no token types initially.
 #[init(
-    contract = "aesirx_web3_web3id",
+    contract = "LicenseContract",
     event = "Cis2Event<ContractTokenId, ContractTokenAmount>"
 )]
 fn contract_init<S: HasStateApi>(
@@ -433,7 +435,7 @@ enum LicenseStatus {
 
 // View function to get a single license's details
 #[receive(
-    contract = "aesirx_web3_web3id",
+    contract = "LicenseContract",
     name = "viewLicense",
     parameter = "ContractTokenId",
     return_value = "LicenseInfo",
@@ -475,7 +477,7 @@ struct ViewState {
 }
 
 #[receive(
-    contract = "aesirx_web3_web3id",
+    contract = "LicenseContract",
     name = "burn",
     parameter = "BurnParams",
     error = "ContractError",
@@ -523,7 +525,7 @@ fn contract_burn<S: HasStateApi>(
 /// View function that returns the entire contents of the state. Meant for
 /// testing.
 #[receive(
-    contract = "aesirx_web3_web3id",
+    contract = "LicenseContract",
     name = "view",
     return_value = "ViewState"
 )]
@@ -572,7 +574,7 @@ fn contract_view<S: HasStateApi>(
 /// Note: Can at most mint 32 token types in one call due to the limit on the
 /// number of logs a smart contract can produce on each function call.
 #[receive(
-    contract = "aesirx_web3_web3id",
+    contract = "LicenseContract",
     name = "mint",
     parameter = "MintParams",
     error = "ContractError",
@@ -603,12 +605,13 @@ fn contract_mint<S: HasStateApi>(
     let token_id = params.token;
     let web3id = params.web3id;
 
-    ensure!(
-        check_web3id(&web3id),
-        CustomContractError::InvalidWeb3Id.into()
-    );
+    // ensure!(
+    //     // check_web3id(&web3id),
+    //     CustomContractError::InvalidWeb3Id.into()
+    // );
 
-    let metadata_url = build_token_metadata_url(&web3id);
+    // let metadata_url = build_token_metadata_url(&web3id);
+    let metadata_url = format!("{}{:08x}", TOKEN_METADATA_BASE_URL, token_id.0);
 
     let token_owner: Address = Address::Account(params.owner);
 
@@ -652,7 +655,7 @@ type TransferParameter = TransferParams<ContractTokenId, ContractTokenAmount>;
 /// - Fails to log event.
 /// - Any of the receive hook function calls rejects.
 #[receive(
-    contract = "aesirx_web3_web3id",
+    contract = "LicenseContract",
     name = "transfer",
     parameter = "TransferParameter",
     error = "ContractError",
@@ -720,7 +723,7 @@ fn contract_transfer<S: HasStateApi>(
 /// - This is not called by the contract owner
 /// - It fails to parse the parameter.
 #[receive(
-    contract = "aesirx_web3_web3id",
+    contract = "LicenseContract",
     name = "globalUpdateOperator",
     parameter = "UpdateOperatorParams",
     error = "ContractError",
@@ -760,7 +763,7 @@ fn contract_global_update_operator<S: HasStateApi>(
 /// - It fails to parse the parameter.
 /// - Fails to log event.
 #[receive(
-    contract = "aesirx_web3_web3id",
+    contract = "LicenseContract",
     name = "updateOperator",
     parameter = "UpdateOperatorParams",
     error = "ContractError",
@@ -805,7 +808,7 @@ fn contract_update_operator<S: HasStateApi>(
 /// It rejects if:
 /// - It fails to parse the parameter.
 #[receive(
-    contract = "aesirx_web3_web3id",
+    contract = "LicenseContract",
     name = "operatorOf",
     parameter = "OperatorOfQueryParams",
     return_value = "OperatorOfQueryResponse",
@@ -841,7 +844,7 @@ type ContractBalanceOfQueryResponse = BalanceOfQueryResponse<ContractTokenAmount
 /// - It fails to parse the parameter.
 /// - Any of the queried `token_id` does not exist.
 #[receive(
-    contract = "aesirx_web3_web3id",
+    contract = "LicenseContract",
     name = "balanceOf",
     parameter = "ContractBalanceOfQueryParams",
     return_value = "ContractBalanceOfQueryResponse",
@@ -874,7 +877,7 @@ type ContractTokenMetadataQueryParams = TokenMetadataQueryParams<ContractTokenId
 /// - It fails to parse the parameter.
 /// - Any of the queried `token_id` does not exist.
 #[receive(
-    contract = "aesirx_web3_web3id",
+    contract = "LicenseContract",
     name = "tokenMetadata",
     parameter = "ContractTokenMetadataQueryParams",
     return_value = "TokenMetadataQueryResponse",
@@ -916,7 +919,7 @@ fn contract_token_metadata<S: HasStateApi>(
 /// It rejects if:
 /// - It fails to parse the parameter.
 #[receive(
-    contract = "aesirx_web3_web3id",
+    contract = "LicenseContract",
     name = "supports",
     parameter = "SupportsQueryParams",
     return_value = "SupportsQueryResponse",
@@ -949,7 +952,7 @@ fn contract_supports<S: HasStateApi>(
 /// - Sender is not the owner of the contract instance.
 /// - It fails to parse the parameter.
 #[receive(
-    contract = "aesirx_web3_web3id",
+    contract = "LicenseContract",
     name = "setImplementors",
     parameter = "SetImplementorsParams",
     error = "ContractError",
@@ -984,7 +987,7 @@ struct LicenseView {
 
 // The view_licenses_by_owner function remains the same
 #[receive(
-    contract = "aesirx_web3_web3id",
+    contract = "LicenseContract",
     name = "viewLicensesByOwner",
     parameter = "Address",
     return_value = "Vec<LicenseView>",
@@ -1025,7 +1028,7 @@ struct UpgradeParams {
 }
 
 #[receive(
-    contract = "aesirx_web3_web3id",
+    contract = "LicenseContract",
     name = "upgrade",
     parameter = "UpgradeParams",
     low_level
@@ -1061,7 +1064,7 @@ struct ValidityPeriod {
 
 // Update the function to use correct token ID type
 #[receive(
-    contract = "aesirx_web3_web3id",
+    contract = "LicenseContract",
     name = "updateLicenseValidity",
     parameter = "UpdateValidityParams",
     error = "ContractError",
