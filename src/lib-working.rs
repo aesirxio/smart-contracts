@@ -26,7 +26,7 @@ use concordium_std::*;
 
 /// The baseurl for the token metadata, gets appended with the token ID as hex
 /// encoding before emitted in the TokenMetadata event.
-const TOKEN_METADATA_BASE_URL: &str = " https://web3id.backend.aesirx.io:8001/licenses/";
+const TOKEN_METADATA_BASE_URL: &str = "https://denta.rs/";
 
 /// List of supported standards by this contract address.
 const SUPPORTS_STANDARDS: [StandardIdentifier<'static>; 2] =
@@ -324,8 +324,7 @@ impl<S: HasStateApi> State<S> {
     }
 
     /// Update the state removing an operator for minting tokens
-    /// Succeeds even if the `operator` is _not_ an operator for the
-    /// `address`.
+    /// Succeeds even if the `operator` is _not_ an operator for the `address`.
     fn remove_global_operator(&mut self, operator: &Address) {
         self.operators.remove(operator);
     }
@@ -406,6 +405,61 @@ fn contract_init<S: HasStateApi>(
     Ok(State::empty(state_builder))
 }
 
+// Define the view struct for license details
+#[derive(Serialize, SchemaType)]
+struct LicenseInfo {
+    current_owner: Address,
+    license_state: LicenseState,
+    minting_date: Timestamp,
+    minted_by: Address,
+}
+
+#[derive(Serial, Deserial, SchemaType, Clone)]
+struct LicenseState {
+    current_owner: Address,
+    license_state: LicenseStatus,  // Using an enum for the status
+    minting_date: Timestamp,
+    minted_by: Address,
+    validity_period: ValidityPeriod,  // Add this field
+}
+
+#[derive(Serial, Deserial, SchemaType, Clone)]
+enum LicenseStatus {
+    Active,
+    Expired,
+    Revoked,
+}
+
+// View function to get a single license's details
+#[receive(
+    contract = "LicenseContract",
+    name = "viewLicense",
+    parameter = "ContractTokenId",
+    return_value = "LicenseInfo",
+    error = "ContractError"
+)]
+fn view_license<S: HasStateApi>(
+    ctx: &impl HasReceiveContext,
+    host: &impl HasHost<State<S>, StateApiType = S>,
+) -> ReceiveResult<LicenseInfo> {
+    let token_id: ContractTokenId = ctx.parameter_cursor().get()?;
+    let state = host.state();
+    
+    let license = match state.licenses.get(&token_id) {
+        Some(license) => license,
+        None => return Err(CustomContractError::LicenseNotFound.into()),
+    };
+
+    let license_info = LicenseInfo {
+        current_owner: license.current_owner,
+        license_state: license.clone(),
+        minting_date: license.minting_date,
+        minted_by: license.minted_by,
+    };
+
+    Ok(license_info)
+}
+
 #[derive(Serialize, SchemaType)]
 struct ViewAddressState {
     owned_tokens: Vec<ContractTokenId>,
@@ -436,15 +490,24 @@ fn contract_burn<S: HasStateApi>(
     let BurnParams { token_id, owner, amount } = ctx.parameter_cursor().get()?;
     
     let state = host.state();
+    
+    // Note: token_id is now correctly TokenIdU32
+    let license = match state.licenses.get(&token_id) {  // Using TokenIdU32
+        Some(license) => license,
+        None => return Err(CustomContractError::LicenseNotFound.into()),
+    };
 
     // Get the sender who invoked this contract function.
     let sender = ctx.sender();
 
     // Authenticate the sender for the token burns.
-    ensure!(owner == sender, ContractError::Unauthorized);
+    ensure!(
+        owner == sender || state.is_operator(&sender, &owner),
+        ContractError::Unauthorized
+    );
 
     // Burn the token
-    host.state_mut().burn(&token_id, &owner)?;
+    host.state_mut().burn(&token_id, &owner)?;  // Using TokenIdU32
 
     // Log the burn event with proper event emission
     logger.log(&Cis2Event::Burn(BurnEvent {
@@ -615,12 +678,12 @@ fn contract_transfer<S: HasStateApi>(
     } in transfers
     {
         let (state, builder) = host.state_and_builder();
-        
         // Authenticate the sender for this transfer
-        ensure!(from == sender, ContractError::Unauthorized);
-
+        ensure!(
+            from == sender || state.is_operator(&sender, &from),
+            ContractError::Unauthorized
+        );
         let to_address = to.address();
-        
         // Update the contract state
         state.transfer(&token_id, amount, &from, &to_address, builder)?;
 
@@ -648,6 +711,45 @@ fn contract_transfer<S: HasStateApi>(
             )?;
         }
     }
+    Ok(())
+}
+
+/// Enable or disable addresses as operators for minting tokens
+///
+/// It rejects if:
+/// - This is not called by the contract owner
+/// - It fails to parse the parameter.
+#[receive(
+    contract = "LicenseContract",
+    name = "globalUpdateOperator",
+    parameter = "UpdateOperatorParams",
+    error = "ContractError",
+    mutable
+)]
+fn contract_global_update_operator<S: HasStateApi>(
+    ctx: &impl HasReceiveContext,
+    host: &mut impl HasHost<State<S>, StateApiType = S>,
+) -> ContractResult<()> {
+    // Parse the parameter.
+    let UpdateOperatorParams(params) = ctx.parameter_cursor().get()?;
+
+    // Get the sender who invoked this contract function.
+    let sender = ctx.sender();
+
+    // Only the owner can perform this operation
+    let owner = ctx.owner();
+    ensure!(sender.matches_account(&owner), ContractError::Unauthorized);
+
+    let state = host.state_mut();
+
+    for param in params {
+        // Update the operator in the state.
+        match param.update {
+            OperatorUpdate::Add => state.add_global_operator(&param.operator),
+            OperatorUpdate::Remove => state.remove_global_operator(&param.operator),
+        }
+    }
+
     Ok(())
 }
 
@@ -870,6 +972,47 @@ fn contract_set_implementor<S: HasStateApi>(
     Ok(())
 }
 
+// Add this struct definition near the top with other types
+#[derive(Serialize, SchemaType)]
+struct LicenseView {
+    token_id: ContractTokenId,
+    current_owner: Address,
+    license_state: LicenseState,
+    minting_date: Timestamp,
+    minted_by: Address,
+}
+
+// The view_licenses_by_owner function remains the same
+#[receive(
+    contract = "LicenseContract",
+    name = "viewLicensesByOwner",
+    parameter = "Address",
+    return_value = "Vec<LicenseView>",
+    error = "ContractError"
+)]
+fn view_licenses_by_owner<S: HasStateApi>(
+    ctx: &impl HasReceiveContext,
+    host: &impl HasHost<State<S>, StateApiType = S>,
+) -> ReceiveResult<Vec<LicenseView>> {
+    let owner: Address = ctx.parameter_cursor().get()?;
+    let state = host.state();
+    let mut licenses = Vec::new();
+
+    for (token_id, license) in state.licenses.iter() {
+        if license.current_owner == owner {
+            licenses.push(LicenseView {
+                token_id: *token_id,
+                current_owner: license.current_owner,
+                license_state: license.clone(),
+                minting_date: license.minting_date,
+                minted_by: license.minted_by,
+            });
+        }
+    }
+
+    Ok(licenses)
+}
+
 /// The parameter type for the contract function `upgrade`.
 /// Takes the new module and optionally a migration function to call in the new
 /// module after the upgrade.
@@ -907,4 +1050,49 @@ fn contract_upgrade(
         )?;
     }
     Ok(())
+}
+
+// Add this struct definition near the top with other types
+#[derive(Serial, Deserial, SchemaType, Clone)]
+struct ValidityPeriod {
+    start: Timestamp,
+    end: Timestamp,
+}
+
+// Update the function to use correct token ID type
+#[receive(
+    contract = "LicenseContract",
+    name = "updateLicenseValidity",
+    parameter = "UpdateValidityParams",
+    error = "ContractError",
+    mutable
+)]
+fn contract_update_validity<S: HasStateApi>(
+    ctx: &impl HasReceiveContext,
+    host: &mut impl HasHost<State<S>, StateApiType = S>,
+) -> ContractResult<()> {
+    let params: UpdateValidityParams = ctx.parameter_cursor().get()?;
+    
+    let state = host.state_mut();
+    
+    // Using ContractTokenId (TokenIdU32) consistently
+    let mut license = match state.licenses.get_mut(&params.token_id) {
+        Some(license) => license,
+        None => return Err(CustomContractError::LicenseNotFound.into()),
+    };
+
+    license.validity_period = ValidityPeriod {
+        start: params.start,
+        end: params.end,
+    };
+
+    Ok(())
+}
+
+// Also define the parameters struct
+#[derive(Serial, Deserial, SchemaType)]
+struct UpdateValidityParams {
+    token_id: ContractTokenId,  // Using TokenIdU32
+    start: Timestamp,
+    end: Timestamp,
 }
