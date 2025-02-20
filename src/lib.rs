@@ -174,6 +174,13 @@ impl From<CustomContractError> for ContractError {
     }
 }
 
+fn build_token_metadata_url(token_id: &ContractTokenId) -> String {
+    // Swap the byte order of the token id to get the natural incremental number.
+    let token_value = token_id.0.swap_bytes();
+    // Format the number as an 8-digit decimal string with leading zeros.
+    format!("{}{:08}", TOKEN_METADATA_BASE_URL, token_value)
+}
+
 // Functions for creating, updating and querying the contract state.
 impl<S: HasStateApi> State<S> {
     /// Creates a new state with no tokens.
@@ -214,6 +221,7 @@ impl<S: HasStateApi> State<S> {
         Ok(())
     }
 
+
     /// Mint a new token with a given address as the owner
     fn mint(
         &mut self,
@@ -227,7 +235,7 @@ impl<S: HasStateApi> State<S> {
             CustomContractError::TokenIdAlreadyExists.into()
         );
 
-        let metadata_url = format!("{}{}", TOKEN_METADATA_BASE_URL, token);
+        let metadata_url = build_token_metadata_url(&token);
         let metadata = TokenMetadata {
             url: metadata_url,
             hash: String::from(""),
@@ -546,7 +554,7 @@ fn contract_mint<S: HasStateApi>(
     // );
 
     // let metadata_url = build_token_metadata_url(&web3id);
-    let metadata_url = format!("{}{:08}", TOKEN_METADATA_BASE_URL, token_id.0);
+    let metadata_url = build_token_metadata_url(&token_id);
 
     let token_owner: Address = Address::Account(params.owner);
 
