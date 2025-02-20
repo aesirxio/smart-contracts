@@ -539,13 +539,12 @@ fn contract_mint<S: HasStateApi>(
     let token_id = params.token;
     let web3id = params.web3id;
 
-    // ensure!(
-    //     // check_web3id(&web3id),
-    //     CustomContractError::InvalidWeb3Id.into()
-    // );
-
-    // let metadata_url = build_token_metadata_url(&web3id);
-    let metadata_url = format!("{}{}", TOKEN_METADATA_BASE_URL, token_id);
+    // Create the metadata URL using the token_id formatted with leading zeros
+    let metadata_url = format!(
+        "{}{:08}", // Use {:08} to ensure it is padded with leading zeros
+        TOKEN_METADATA_BASE_URL,
+        token_id.0 // Assuming token_id.0 gives you the underlying u32 value
+    );
 
     let token_owner: Address = Address::Account(params.owner);
 
