@@ -545,7 +545,7 @@ fn contract_mint<S: HasStateApi>(
     // );
 
     // let metadata_url = build_token_metadata_url(&web3id);
-    let metadata_url = format!("{}{:08x}", TOKEN_METADATA_BASE_URL, token_id.0);
+    let metadata_url = format!("{}{}", TOKEN_METADATA_BASE_URL, token_id);
 
     let token_owner: Address = Address::Account(params.owner);
 
