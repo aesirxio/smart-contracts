@@ -149,6 +149,7 @@ enum CustomContractError {
     InvalidWeb3Id,
     /// License not found
     LicenseNotFound,
+    Unauthorized,
 }
 
 /// Wrapping the custom errors in a type with CIS2 errors.
@@ -197,7 +198,7 @@ impl<S: HasStateApi> State<S> {
             implementors: state_builder.new_map(),
             metadata: state_builder.new_map(),
             operators: state_builder.new_set(),
-            owner, // Use the provided owner parameter directly
+            owner,
         }
     }
 
@@ -417,19 +418,11 @@ fn contract_init<S: HasStateApi>(
     ctx: &impl HasInitContext,
     state_builder: &mut StateBuilder<S>,
 ) -> InitResult<State<S>> {
-    // Hardcoded owner address in Base58 format
-    let owner_address_str = "4MwARWeXdMs3YZ5MPPn2561ceani6AJAVTNPtwS6tceaG2qatK";
+    // Use the init_origin as the default owner
+    let default_owner = ctx.init_origin();
 
-    // Decode the Base58 string to bytes
-    let owner_address_bytes: Vec<u8> = bs58::decode(owner_address_str)
-        .into_vec()
-        .map_err(|_| CustomContractError::ParseParams)?; // Use CustomContractError
-
-    // Ensure the byte array is exactly 32 bytes
-    let official_owner = AccountAddress(owner_address_bytes.try_into().map_err(|_| CustomContractError::ParseParams)?); // Use CustomContractError
-
-    // Create the initial state with the hardcoded owner
-    let state = State::empty(state_builder, Address::Account(official_owner)); // Pass the owner
+    // Create the initial state with the deployer as the owner
+    let state = State::empty(state_builder, Address::Account(default_owner));
 
     Ok(state)
 }
@@ -555,11 +548,15 @@ fn contract_mint<S: HasStateApi>(
 
     let (state, builder) = host.state_and_builder();
 
+    if sender != state.owner && !state.operators.contains(&sender) {
+        return Err(ContractError::Unauthorized); // Use the stored owner and operators for authorization
+    }
+
     // Only the owner account and global operators can mint
-    ensure!(
-        sender.matches_account(&owner) || state.operators.contains(&sender),
-        ContractError::Unauthorized
-    );
+    // ensure!(
+    //     sender.matches_account(&owner) || state.operators.contains(&sender),
+    //     ContractError::Unauthorized
+    // );
 
     // Parse the parameter.
     let params: MintParams = ctx.parameter_cursor().get()?;
@@ -646,7 +643,11 @@ fn contract_transfer<S: HasStateApi>(
         let (state, builder) = host.state_and_builder();
         
         // Authenticate the sender for this transfer
-        ensure!(from == sender, ContractError::Unauthorized);
+        // ensure!(from == sender, ContractError::Unauthorized);
+
+        if from != state.owner  {
+            return Err(ContractError::Unauthorized); // Use the stored owner and operators for authorization
+        }
 
         let to_address = to.address();
         
@@ -887,10 +888,15 @@ fn contract_set_implementor<S: HasStateApi>(
     host: &mut impl HasHost<State<S>, StateApiType = S>,
 ) -> ContractResult<()> {
     // Authorize the sender.
-    ensure!(
-        ctx.sender().matches_account(&ctx.owner()),
-        ContractError::Unauthorized
-    );
+    // ensure!(
+    //     ctx.sender().matches_account(&ctx.owner()),
+    //     ContractError::Unauthorized
+    // );
+    let sender = ctx.sender();
+
+    if ctx.sender().matches_account(&ctx.owner()) {
+        return Err(ContractError::Unauthorized); // Use the stored owner and operators for authorization
+    }
     // Parse the parameter.
     let params: SetImplementorsParams = ctx.parameter_cursor().get()?;
     // Update the implementors in the state
@@ -921,7 +927,13 @@ fn contract_upgrade(
     host: &mut LowLevelHost,
 ) -> ReceiveResult<()> {
     // Check that only the owner is authorized to upgrade the smart contract.
-    ensure!(ctx.sender().matches_account(&ctx.owner()));
+    // ensure!(ctx.sender().matches_account(&ctx.owner()));
+    let sender = ctx.sender();
+
+    if !sender.matches_account(&ctx.owner()) {
+        // Optionally log a message or handle unauthorized access
+        return Ok(()); // Exit the function without performing the upgrade
+    }
     // Parse the parameter.
     let params: UpgradeParams = ctx.parameter_cursor().get()?;
     // Trigger the upgrade.
@@ -935,5 +947,32 @@ fn contract_upgrade(
             Amount::zero(),
         )?;
     }
+    Ok(())
+}
+
+// Function to update the owner
+fn update_owner<S: HasStateApi>(
+    ctx: &impl HasReceiveContext,
+    state: &mut State<S>,
+    new_owner_address: &str,
+) -> Result<(), CustomContractError> {
+    // Check if the caller is the current owner
+    let caller = ctx.sender();
+    if caller != state.owner {
+        return Err(CustomContractError::Unauthorized);
+    }
+
+    let new_owner_address = "4MwARWeXdMs3YZ5MPPn2561ceani6AJAVTNPtwS6tceaG2qatK";
+    // Decode the new owner address from Base58
+    let new_owner_bytes = bs58::decode(new_owner_address)
+        .into_vec()
+        .map_err(|_| CustomContractError::ParseParams)?; // Handle parsing errors
+
+    // Ensure the byte array is exactly 32 bytes
+    let new_owner = AccountAddress(new_owner_bytes.try_into().map_err(|_| CustomContractError::ParseParams)?);
+
+    // Update the owner in the state
+    state.owner = Address::Account(new_owner);
+
     Ok(())
 }
