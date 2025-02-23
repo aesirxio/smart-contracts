@@ -1,0 +1,10 @@
+/Users/slobodankotarac/Documents/concordium/smart-contracts-1/target/concordium/wasm32-unknown-unknown/release/deps/libbs58-67cb7e1093b8b2ec.rmeta: /Users/slobodankotarac/.cargo/registry/src/index.crates.io-6f17d22bba15001f/bs58-0.5.1/src/lib.rs /Users/slobodankotarac/.cargo/registry/src/index.crates.io-6f17d22bba15001f/bs58-0.5.1/src/alphabet.rs /Users/slobodankotarac/.cargo/registry/src/index.crates.io-6f17d22bba15001f/bs58-0.5.1/src/decode.rs /Users/slobodankotarac/.cargo/registry/src/index.crates.io-6f17d22bba15001f/bs58-0.5.1/src/encode.rs
+
+/Users/slobodankotarac/Documents/concordium/smart-contracts-1/target/concordium/wasm32-unknown-unknown/release/deps/libbs58-67cb7e1093b8b2ec.rlib: /Users/slobodankotarac/.cargo/registry/src/index.crates.io-6f17d22bba15001f/bs58-0.5.1/src/lib.rs /Users/slobodankotarac/.cargo/registry/src/index.crates.io-6f17d22bba15001f/bs58-0.5.1/src/alphabet.rs /Users/slobodankotarac/.cargo/registry/src/index.crates.io-6f17d22bba15001f/bs58-0.5.1/src/decode.rs /Users/slobodankotarac/.cargo/registry/src/index.crates.io-6f17d22bba15001f/bs58-0.5.1/src/encode.rs
+
+/Users/slobodankotarac/Documents/concordium/smart-contracts-1/target/concordium/wasm32-unknown-unknown/release/deps/bs58-67cb7e1093b8b2ec.d: /Users/slobodankotarac/.cargo/registry/src/index.crates.io-6f17d22bba15001f/bs58-0.5.1/src/lib.rs /Users/slobodankotarac/.cargo/registry/src/index.crates.io-6f17d22bba15001f/bs58-0.5.1/src/alphabet.rs /Users/slobodankotarac/.cargo/registry/src/index.crates.io-6f17d22bba15001f/bs58-0.5.1/src/decode.rs /Users/slobodankotarac/.cargo/registry/src/index.crates.io-6f17d22bba15001f/bs58-0.5.1/src/encode.rs
+
+/Users/slobodankotarac/.cargo/registry/src/index.crates.io-6f17d22bba15001f/bs58-0.5.1/src/lib.rs:
+/Users/slobodankotarac/.cargo/registry/src/index.crates.io-6f17d22bba15001f/bs58-0.5.1/src/alphabet.rs:
+/Users/slobodankotarac/.cargo/registry/src/index.crates.io-6f17d22bba15001f/bs58-0.5.1/src/decode.rs:
+/Users/slobodankotarac/.cargo/registry/src/index.crates.io-6f17d22bba15001f/bs58-0.5.1/src/encode.rs:

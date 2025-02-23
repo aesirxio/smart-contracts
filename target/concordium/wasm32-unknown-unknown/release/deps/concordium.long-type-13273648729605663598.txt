@@ -1,1 +1,0 @@
-concordium_cis2::Cis2Event<concordium_std::String, concordium_cis2::TokenAmountU8>

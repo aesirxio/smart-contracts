@@ -21,6 +21,10 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
+extern crate alloc;
+use alloc::vec::Vec;
+use bs58;
+
 use concordium_cis2::*;
 use concordium_std::*;
 
@@ -111,6 +115,8 @@ struct State<S> {
     metadata: StateMap<ContractTokenId, TokenMetadata, S>,
     // Valid global operators for minting
     operators: StateSet<Address, S>,
+    /// The owner of the contract
+    owner: Address,
 }
 
 /// The parameter type for the contract function `setImplementors`.
@@ -183,14 +189,15 @@ fn build_token_metadata_url(token_id: &ContractTokenId) -> String {
 
 // Functions for creating, updating and querying the contract state.
 impl<S: HasStateApi> State<S> {
-    /// Creates a new state with no tokens.
-    fn empty(state_builder: &mut StateBuilder<S>) -> Self {
+    /// Creates a new state with no tokens and a specified owner.
+    fn empty(state_builder: &mut StateBuilder<S>, owner: Address) -> Self {
         State {
             state: state_builder.new_map(),
             all_tokens: state_builder.new_set(),
             implementors: state_builder.new_map(),
             metadata: state_builder.new_map(),
             operators: state_builder.new_set(),
+            owner, // Use the provided owner parameter directly
         }
     }
 
@@ -407,11 +414,24 @@ impl<S: HasStateApi> State<S> {
     event = "Cis2Event<ContractTokenId, ContractTokenAmount>"
 )]
 fn contract_init<S: HasStateApi>(
-    _ctx: &impl HasInitContext,
+    ctx: &impl HasInitContext,
     state_builder: &mut StateBuilder<S>,
 ) -> InitResult<State<S>> {
-    // Construct the initial contract state.
-    Ok(State::empty(state_builder))
+    // Hardcoded owner address in Base58 format
+    let owner_address_str = "4MwARWeXdMs3YZ5MPPn2561ceani6AJAVTNPtwS6tceaG2qatK";
+
+    // Decode the Base58 string to bytes
+    let owner_address_bytes: Vec<u8> = bs58::decode(owner_address_str)
+        .into_vec()
+        .map_err(|_| CustomContractError::ParseParams)?; // Use CustomContractError
+
+    // Ensure the byte array is exactly 32 bytes
+    let official_owner = AccountAddress(owner_address_bytes.try_into().map_err(|_| CustomContractError::ParseParams)?); // Use CustomContractError
+
+    // Create the initial state with the hardcoded owner
+    let state = State::empty(state_builder, Address::Account(official_owner)); // Pass the owner
+
+    Ok(state)
 }
 
 #[derive(Serialize, SchemaType)]

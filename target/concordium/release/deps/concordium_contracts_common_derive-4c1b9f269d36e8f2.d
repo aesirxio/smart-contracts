@@ -1,0 +1,7 @@
+/Users/slobodankotarac/Documents/concordium/smart-contracts-1/target/concordium/release/deps/libconcordium_contracts_common_derive-4c1b9f269d36e8f2.dylib: /Users/slobodankotarac/.cargo/registry/src/index.crates.io-6f17d22bba15001f/concordium-contracts-common-derive-4.1.0/src/lib.rs /Users/slobodankotarac/.cargo/registry/src/index.crates.io-6f17d22bba15001f/concordium-contracts-common-derive-4.1.0/src/attribute.rs /Users/slobodankotarac/.cargo/registry/src/index.crates.io-6f17d22bba15001f/concordium-contracts-common-derive-4.1.0/src/derive.rs
+
+/Users/slobodankotarac/Documents/concordium/smart-contracts-1/target/concordium/release/deps/concordium_contracts_common_derive-4c1b9f269d36e8f2.d: /Users/slobodankotarac/.cargo/registry/src/index.crates.io-6f17d22bba15001f/concordium-contracts-common-derive-4.1.0/src/lib.rs /Users/slobodankotarac/.cargo/registry/src/index.crates.io-6f17d22bba15001f/concordium-contracts-common-derive-4.1.0/src/attribute.rs /Users/slobodankotarac/.cargo/registry/src/index.crates.io-6f17d22bba15001f/concordium-contracts-common-derive-4.1.0/src/derive.rs
+
+/Users/slobodankotarac/.cargo/registry/src/index.crates.io-6f17d22bba15001f/concordium-contracts-common-derive-4.1.0/src/lib.rs:
+/Users/slobodankotarac/.cargo/registry/src/index.crates.io-6f17d22bba15001f/concordium-contracts-common-derive-4.1.0/src/attribute.rs:
+/Users/slobodankotarac/.cargo/registry/src/index.crates.io-6f17d22bba15001f/concordium-contracts-common-derive-4.1.0/src/derive.rs:

@@ -16,6 +16,7 @@ bump_alloc = ["concordium-std/bump_alloc"]
 concordium-std = { version = "10.1.0"}
 concordium-cis2 = "6.2.0"
 concordium-std-derive = "6.0.0"
+bs58 = { version = "0.5.1", features = ["alloc"] }
 
 
 
