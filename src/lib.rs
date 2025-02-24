@@ -429,7 +429,7 @@ fn contract_init<S: HasStateApi>(
     // Use the init_origin as the default owner
     let default_owner = ctx.init_origin();
     // Create the initial state with the deployer as the owner
-    let state = State::empty(state_builder, Address::Account(OFFICIAL_OWNER));
+    let state = State::empty(state_builder, Address::Account(default_owner));
 
     Ok(state)
 }
