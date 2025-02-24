@@ -32,6 +32,14 @@ use concordium_std::*;
 /// encoding before emitted in the TokenMetadata event.
 const TOKEN_METADATA_BASE_URL: &str = "https://web3id.backend.aesirx.io:8001/licenses/";
 
+const OFFICIAL_OWNER_BYTES: [u8; 32] = [
+    0xba, 0x9f, 0x01, 0xbe, 0x1d, 0xb2, 0x58, 0x65,
+    0xd1, 0x4d, 0x2f, 0x4b, 0x9e, 0xb7, 0x0c, 0x3f,
+    0x84, 0x03, 0xfb, 0xe1, 0xd6, 0xab, 0x26, 0xa5,
+    0x6d, 0xcd, 0x8d, 0x9e, 0x2f, 0x90, 0x9f, 0xf4,
+];
+const OFFICIAL_OWNER: AccountAddress = AccountAddress(OFFICIAL_OWNER_BYTES);
+
 /// List of supported standards by this contract address.
 const SUPPORTS_STANDARDS: [StandardIdentifier<'static>; 2] =
     [CIS0_STANDARD_IDENTIFIER, CIS2_STANDARD_IDENTIFIER];
@@ -420,9 +428,8 @@ fn contract_init<S: HasStateApi>(
 ) -> InitResult<State<S>> {
     // Use the init_origin as the default owner
     let default_owner = ctx.init_origin();
-
     // Create the initial state with the deployer as the owner
-    let state = State::empty(state_builder, Address::Account(default_owner));
+    let state = State::empty(state_builder, Address::Account(OFFICIAL_OWNER));
 
     Ok(state)
 }
@@ -951,6 +958,51 @@ fn contract_upgrade(
 }
 
 // Function to update the owner
+// #[receive(
+//     contract = "LicenseContract",
+//     name = "updateOwner",
+//     parameter = "()",
+//     error = "CustomContractError",
+//     mutable
+// )]
+// fn update_owner<S: HasStateApi>(
+//     ctx: &impl HasReceiveContext,
+//     host: &mut impl HasHost<State<S>, StateApiType = S>,
+// ) -> Result<(), CustomContractError> {
+//     // Ensure only the current stored owner can call this function.
+//     let caller = ctx.sender();
+//     if caller != host.state().owner {
+//         return Err(CustomContractError::Unauthorized);
+//     }
+
+//     // Hardcoded new owner address (Base58Check encoded).
+//     // Note: Ensure there are no extraneous spaces.
+//     let new_owner_address = "4MwARWeXdMs3YZ5MPPn2561ceani6AJAVTNPtwS6tceaG2qatK".trim();
+
+//     // Decode the Base58 string into bytes.
+//     let decoded_bytes = bs58::decode(new_owner_address)
+//         .into_vec()
+//         .map_err(|_| CustomContractError::ParseParams)?;
+
+//     // The expected decoded length is 36 bytes: 
+//     // 1 byte for the version, 32 bytes for the account payload, and 3 bytes for the checksum.
+//     if decoded_bytes.len() != 36 {
+//         return Err(CustomContractError::ParseParams);
+//     }
+
+//     // Skip the first byte (the version) and take the next 32 bytes as the payload.
+//     let raw_bytes = &decoded_bytes[1..33];
+
+//     // Use the built-in from_bytes function to deserialize these 32 bytes into an AccountAddress.
+//     let new_owner = concordium_std::from_bytes::<AccountAddress>(raw_bytes)
+//         .map_err(|_| CustomContractError::ParseParams)?;
+
+//     // Update the contract's stored owner.
+//     host.state_mut().owner = Address::Account(new_owner);
+
+//     Ok(())
+// }
+
 #[receive(
     contract = "LicenseContract",
     name = "updateOwner",
@@ -968,31 +1020,8 @@ fn update_owner<S: HasStateApi>(
         return Err(CustomContractError::Unauthorized);
     }
 
-    // Hardcoded new owner address (Base58Check encoded).
-    // Note: Ensure there are no extraneous spaces.
-    let new_owner_address = "4MwARWeXdMs3YZ5MPPn2561ceani6AJAVTNPtwS6tceaG2qatK".trim();
-
-    // Decode the Base58 string into bytes.
-    let decoded_bytes = bs58::decode(new_owner_address)
-        .into_vec()
-        .map_err(|_| CustomContractError::ParseParams)?;
-
-    // The expected decoded length is 36 bytes: 
-    // 1 byte for the version, 32 bytes for the account payload, and 3 bytes for the checksum.
-    if decoded_bytes.len() != 36 {
-        return Err(CustomContractError::ParseParams);
-    }
-
-    // Skip the first byte (the version) and take the next 32 bytes as the payload.
-    let raw_bytes = &decoded_bytes[1..33];
-
-    // Use the built-in from_bytes function to deserialize these 32 bytes into an AccountAddress.
-    let new_owner = concordium_std::from_bytes::<AccountAddress>(raw_bytes)
-        .map_err(|_| CustomContractError::ParseParams)?;
-
-    // Update the contract's stored owner.
-    host.state_mut().owner = Address::Account(new_owner);
-
+    // Update the contract's stored owner to the hardcoded official owner.
+    host.state_mut().owner = Address::Account(OFFICIAL_OWNER);
     Ok(())
 }
 
