@@ -968,24 +968,35 @@ fn update_owner<S: HasStateApi>(
         return Err(CustomContractError::Unauthorized);
     }
 
-    // Hardcoded new owner address (Base58 encoded)
+    // Hardcoded new owner address (Base58Check encoded)
     let new_owner_address = "4MwARWeXdMs3YZ5MPPn2561ceani6AJAVTNPtwS6tceaG2qatK";
 
     // Decode the Base58 address to bytes
-    let new_owner_bytes = bs58::decode(new_owner_address)
+    let decoded_bytes = bs58::decode(new_owner_address)
         .into_vec()
         .map_err(|_| CustomContractError::ParseParams)?;
 
-    // Ensure the byte array is exactly 32 bytes
-    let new_owner = AccountAddress(
-        new_owner_bytes
-            .try_into()
-            .map_err(|_| CustomContractError::ParseParams)?,
-    );
+    // The decoded bytes are typically 32 bytes for the public key + 4 bytes for checksum
+    if decoded_bytes.len() != 36 {
+        return Err(CustomContractError::ParseParams);
+    }
 
-    // Update the contract owner
+    // Strip off the checksum (last 4 bytes)
+    let new_owner_bytes = &decoded_bytes[..32];
+
+    // Ensure the byte array is exactly 32 bytes
+    let new_owner: [u8; 32] = new_owner_bytes
+        .try_into()
+        .map_err(|_| CustomContractError::ParseParams)?;
+
+    // Convert to AccountAddress
+    let new_owner = AccountAddress(new_owner);
+
+    // Update contract owner
     host.state_mut().owner = Address::Account(new_owner);
 
     Ok(())
-} // <-- Make sure this closing brace is here!
+}
+
+// <-- Make sure this closing brace is here!
 
