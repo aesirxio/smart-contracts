@@ -954,6 +954,7 @@ fn contract_upgrade(
 #[receive(
     contract = "LicenseContract",
     name = "updateOwner",
+    parameter = "()",
     error = "CustomContractError",
     mutable
 )]
