@@ -951,28 +951,40 @@ fn contract_upgrade(
 }
 
 // Function to update the owner
+#[receive(
+    contract = "LicenseContract",
+    name = "updateOwner",
+    error = "CustomContractError",
+    mutable
+)]
 fn update_owner<S: HasStateApi>(
     ctx: &impl HasReceiveContext,
-    state: &mut State<S>,
-    new_owner_address: &str,
+    host: &mut impl HasHost<State<S>, StateApiType = S>,
 ) -> Result<(), CustomContractError> {
-    // Check if the caller is the current owner
+    // Ensure only the current owner can call this function
     let caller = ctx.sender();
-    if caller != state.owner {
+    if caller != host.state().owner {
         return Err(CustomContractError::Unauthorized);
     }
 
+    // Hardcoded new owner address (Base58 encoded)
     let new_owner_address = "4MwARWeXdMs3YZ5MPPn2561ceani6AJAVTNPtwS6tceaG2qatK";
-    // Decode the new owner address from Base58
+
+    // Decode the Base58 address to bytes
     let new_owner_bytes = bs58::decode(new_owner_address)
         .into_vec()
-        .map_err(|_| CustomContractError::ParseParams)?; // Handle parsing errors
+        .map_err(|_| CustomContractError::ParseParams)?;
 
     // Ensure the byte array is exactly 32 bytes
-    let new_owner = AccountAddress(new_owner_bytes.try_into().map_err(|_| CustomContractError::ParseParams)?);
+    let new_owner = AccountAddress(
+        new_owner_bytes
+            .try_into()
+            .map_err(|_| CustomContractError::ParseParams)?,
+    );
 
-    // Update the owner in the state
-    state.owner = Address::Account(new_owner);
+    // Update the contract owner
+    host.state_mut().owner = Address::Account(new_owner);
 
     Ok(())
-}
+} // <-- Make sure this closing brace is here!
+
