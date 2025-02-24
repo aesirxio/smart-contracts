@@ -30,7 +30,7 @@ use concordium_std::*;
 
 /// The baseurl for the token metadata, gets appended with the token ID as hex
 /// encoding before emitted in the TokenMetadata event.
-const TOKEN_METADATA_BASE_URL: &str = " https://web3id.backend.aesirx.io:8001/licenses/";
+const TOKEN_METADATA_BASE_URL: &str = "https://dev01.aesirx.io:8002/licenses/";
 
 /// List of supported standards by this contract address.
 const SUPPORTS_STANDARDS: [StandardIdentifier<'static>; 2] =
@@ -894,7 +894,7 @@ fn contract_set_implementor<S: HasStateApi>(
     // );
     let sender = ctx.sender();
 
-    if ctx.sender().matches_account(&ctx.owner()) {
+    if !ctx.sender().matches_account(&ctx.owner()) {
         return Err(ContractError::Unauthorized); // Use the stored owner and operators for authorization
     }
     // Parse the parameter.
