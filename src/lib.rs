@@ -962,37 +962,33 @@ fn update_owner<S: HasStateApi>(
     ctx: &impl HasReceiveContext,
     host: &mut impl HasHost<State<S>, StateApiType = S>,
 ) -> Result<(), CustomContractError> {
-    // Ensure only the current owner can call this function
+    // Ensure only the current stored owner can call this function.
     let caller = ctx.sender();
     if caller != host.state().owner {
         return Err(CustomContractError::Unauthorized);
     }
 
     // Hardcoded new owner address (Base58Check encoded)
-    let new_owner_address = "4MwARWeXdMs3YZ5MPPn2561ceani6AJAVTNPtwS6tceaG2qatK";
+    let new_owner_address = "4MwARWeXdMs3YZ5MPPn2561ceani6AJAVTNPtwS6tceaG2qatK".trim();
 
-    // Decode the Base58 address to bytes
+    // Decode the Base58 string into bytes.
     let decoded_bytes = bs58::decode(new_owner_address)
         .into_vec()
         .map_err(|_| CustomContractError::ParseParams)?;
 
-    // The decoded bytes are typically 32 bytes for the public key + 4 bytes for checksum
+    // The expected decoded length is 36 (32 bytes for payload + 4-byte checksum).
     if decoded_bytes.len() != 36 {
         return Err(CustomContractError::ParseParams);
     }
 
-    // Strip off the checksum (last 4 bytes)
-    let new_owner_bytes = &decoded_bytes[..32];
+    // Extract the first 32 bytes (the actual account bytes)
+    let raw_bytes = &decoded_bytes[..32];
 
-    // Ensure the byte array is exactly 32 bytes
-    let new_owner: [u8; 32] = new_owner_bytes
-        .try_into()
+    // Use the built-in from_bytes function to deserialize into an AccountAddress.
+    let new_owner = concordium_std::from_bytes::<AccountAddress>(raw_bytes)
         .map_err(|_| CustomContractError::ParseParams)?;
 
-    // Convert to AccountAddress
-    let new_owner = AccountAddress(new_owner);
-
-    // Update contract owner
+    // Update the contract's stored owner.
     host.state_mut().owner = Address::Account(new_owner);
 
     Ok(())
