@@ -968,7 +968,8 @@ fn update_owner<S: HasStateApi>(
         return Err(CustomContractError::Unauthorized);
     }
 
-    // Hardcoded new owner address (Base58Check encoded)
+    // Hardcoded new owner address (Base58Check encoded).
+    // Note: Ensure there are no extraneous spaces.
     let new_owner_address = "4MwARWeXdMs3YZ5MPPn2561ceani6AJAVTNPtwS6tceaG2qatK".trim();
 
     // Decode the Base58 string into bytes.
@@ -976,15 +977,16 @@ fn update_owner<S: HasStateApi>(
         .into_vec()
         .map_err(|_| CustomContractError::ParseParams)?;
 
-    // The expected decoded length is 36 (32 bytes for payload + 4-byte checksum).
+    // The expected decoded length is 36 bytes: 
+    // 1 byte for the version, 32 bytes for the account payload, and 3 bytes for the checksum.
     if decoded_bytes.len() != 36 {
         return Err(CustomContractError::ParseParams);
     }
 
-    // Extract the first 32 bytes (the actual account bytes)
-    let raw_bytes = &decoded_bytes[..32];
+    // Skip the first byte (the version) and take the next 32 bytes as the payload.
+    let raw_bytes = &decoded_bytes[1..33];
 
-    // Use the built-in from_bytes function to deserialize into an AccountAddress.
+    // Use the built-in from_bytes function to deserialize these 32 bytes into an AccountAddress.
     let new_owner = concordium_std::from_bytes::<AccountAddress>(raw_bytes)
         .map_err(|_| CustomContractError::ParseParams)?;
 
@@ -993,6 +995,4 @@ fn update_owner<S: HasStateApi>(
 
     Ok(())
 }
-
-// <-- Make sure this closing brace is here!
 
