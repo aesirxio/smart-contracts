@@ -21,9 +21,9 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-extern crate alloc;
-use alloc::vec::Vec;
-use bs58;
+// extern crate alloc;
+// use alloc::vec::Vec;
+// use bs58;
 
 use concordium_cis2::*;
 use concordium_std::*;
@@ -191,9 +191,9 @@ impl From<CustomContractError> for ContractError {
 
 fn build_token_metadata_url(token_id: &ContractTokenId) -> String {
     // Swap the byte order of the token id to get the natural incremental number.
-    let token_value = token_id.0.swap_bytes();
+    // let token_value = token_id.0.swap_bytes();
     // Format the number as an 8-digit decimal string with leading zeros.
-    format!("{}{:08}", TOKEN_METADATA_BASE_URL, token_value)
+    format!("{}{:08}", TOKEN_METADATA_BASE_URL, token_id.0)
 }
 
 // Functions for creating, updating and querying the contract state.
